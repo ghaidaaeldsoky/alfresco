@@ -4,6 +4,9 @@ package com.companies.alfresco.controller;
 import com.companies.alfresco.dto.FilePayloadRequest;
 import com.companies.alfresco.dto.FilePayloadResponse;
 import com.companies.alfresco.service.AlfrescoUploadService;
+import com.companies.alfresco.service.UserFolderService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,11 +18,15 @@ import java.util.Base64;
 public class TestFilePayloadController {
 
     private final AlfrescoUploadService alfrescoUploadService;
+    private final UserFolderService userFolderService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public TestFilePayloadController(AlfrescoUploadService alfrescoUploadService) {
+    public TestFilePayloadController(AlfrescoUploadService alfrescoUploadService,
+                                     UserFolderService userFolderService) {
         this.alfrescoUploadService = alfrescoUploadService;
+        this.userFolderService = userFolderService;
     }
-
+    
     // @GetMapping
     // public ResponseEntity<FilePayloadResponse> show(){
     //     return ResponseEntity.ok(
@@ -31,21 +38,37 @@ public class TestFilePayloadController {
     public ResponseEntity<FilePayloadResponse> receiveFile(@RequestBody FilePayloadRequest request) {
 
         try {
+
+            // 1) Decide parent folder
+            String parentFolderId = request.getParentFolderId();
+            if (parentFolderId == null || parentFolderId.isEmpty()) {
+                parentFolderId = userFolderService.ensureUserFolder(request.getUsername());
+            }
+
             // Call service to validate + upload to Alfresco
             String alfrescoResponseJson = alfrescoUploadService.uploadBase64File(
                     request.getFileName(),
                     request.getContentBase64(),
                     request.getSize(),
-                    request.getParentFolderId(),
+                    parentFolderId,
                     request.getMimeType()
             );
+
+            // 3) Extract nodeId
+            String nodeId = null;
+            try {
+                JsonNode root = objectMapper.readTree(alfrescoResponseJson);
+                nodeId = root.path("entry").path("id").asText(null);
+            } catch (Exception ignore) {}
 
             
             // Build response for jBPM
             FilePayloadResponse response = new FilePayloadResponse(
-                    "Uploaded successfully to Alfresco",
+                    "Uploaded to user folder successfully",
                     true,
                     request.getSize(),
+                    nodeId,
+                    request.getFileName(),
                     alfrescoResponseJson
             );
             // You can add a field for alfrescoResponseJson if you like
@@ -58,6 +81,8 @@ public class TestFilePayloadController {
                     "Error: " + ex.getMessage(),
                     false,
                     0,
+                    null,
+                    request.getFileName(),
                     "Error"
             );
             return ResponseEntity.badRequest().body(response);

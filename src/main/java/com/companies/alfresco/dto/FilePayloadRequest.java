@@ -6,6 +6,7 @@ public class FilePayloadRequest {
     private String contentBase64;
     private long size;
 
+    private String username;       // NEW – logical Alfresco owner
     private String parentFolderId; // e.g. "-root-" or folder node id
     private String mimeType;       // e.g. "application/pdf"
 
@@ -25,4 +26,8 @@ public class FilePayloadRequest {
 
     public String getMimeType() { return mimeType; }
     public void setMimeType(String mimeType) { this.mimeType = mimeType; }
+
+    public String getUsername() { return username;}
+    public void setUsername(String username) { this.username = username;}
+    
 }
