@@ -4,7 +4,7 @@ This service is a standalone Spring Boot microservice used by jBPM/KIE Server to
 2. Ensure the user has a dedicated folder in Alfresco (`cm:folder`)
 3. Upload the document into that folder
 4. Return the Alfresco nodeId and JSON metadata back to jBPM
-5.Allow jBPM to reference/view later documents
+5. Allow jBPM to reference/view later documents
 
 This enables a clean, externalized integration layer without installing custom handlers or dependencies inside jBPM.
 
