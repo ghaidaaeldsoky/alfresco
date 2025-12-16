@@ -61,6 +61,8 @@ public class TestFilePayloadController {
                 nodeId = root.path("entry").path("id").asText(null);
             } catch (Exception ignore) {}
 
+            System.out.println("Getting id === "+ nodeId);
+
             
             // Build response for jBPM
             FilePayloadResponse response = new FilePayloadResponse(

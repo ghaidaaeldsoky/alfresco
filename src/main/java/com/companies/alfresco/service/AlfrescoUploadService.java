@@ -91,6 +91,8 @@ public class AlfrescoUploadService {
                     + response.getStatusCode() + " body: " + response.getBody());
         }
 
+        System.out.println("Response== " + response);
+
         return response.getBody(); // Alfresco JSON (contains entry.id, etc.)
     }
 }
