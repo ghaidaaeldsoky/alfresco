@@ -1,5 +1,6 @@
 package com.companies.alfresco.controller;
 
+import com.companies.alfresco.dto.DocFirstResponse;
 import com.companies.alfresco.dto.DocsRetrieveRequest;
 import com.companies.alfresco.dto.DocsRetrieveResponse;
 import com.companies.alfresco.dto.DocumentUploadRequest;
@@ -15,10 +16,12 @@ public class DocumentController {
 
     private final DocsUploadService docsUploadService;
     private final DocsRetrieveService docsRetrieveService;
+    private final DocsRetrieveFirstService docsRetrieveFirstService;
 
-    public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService) {
+    public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService) {
         this.docsUploadService = docsUploadService;
         this.docsRetrieveService = docsRetrieveService;
+        this.docsRetrieveFirstService = docsRetrieveFirstService;
     }
 
     @PostMapping   // ("/upload")
@@ -50,6 +53,19 @@ public class DocumentController {
                 docsRetrieveService.retrieveAll(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
         );
 }
+
+@PostMapping("/retrieve-first")
+    public ResponseEntity<DocFirstResponse> retrieveFirst(@RequestBody DocsRetrieveRequest req) {
+        if (req.getInvestorId() == null || req.getInvestorId().isBlank()
+                || req.getCompanyId() == null || req.getCompanyId().isBlank()
+                || req.getServiceId() == null || req.getServiceId().isBlank()) {
+            return ResponseEntity.badRequest().body(new DocFirstResponse(false, "investorId/companyId/serviceId are required"));
+        }
+
+        return ResponseEntity.ok(
+                docsRetrieveFirstService.retrieveFirst(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
+        );
+    }
 
 
     // private final FolderHierarchyService hierarchyService;
