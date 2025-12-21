@@ -17,11 +17,15 @@ public class DocumentController {
     private final DocsUploadService docsUploadService;
     private final DocsRetrieveService docsRetrieveService;
     private final DocsRetrieveFirstService docsRetrieveFirstService;
+    private final DocsListNamesService docsListNamesService;
 
-    public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService) {
+    public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService,
+        DocsListNamesService docsListNamesService
+    ) {
         this.docsUploadService = docsUploadService;
         this.docsRetrieveService = docsRetrieveService;
         this.docsRetrieveFirstService = docsRetrieveFirstService;
+        this.docsListNamesService = docsListNamesService;
     }
 
     @PostMapping   // ("/upload")
@@ -66,6 +70,24 @@ public class DocumentController {
                 docsRetrieveFirstService.retrieveFirst(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
         );
     }
+
+    @PostMapping("/list-names")
+public ResponseEntity<com.companies.alfresco.dto.DocsListNamesResponse> listNames(
+        @RequestBody DocsRetrieveRequest req) {
+
+    if (req.getInvestorId() == null || req.getInvestorId().isBlank()
+            || req.getCompanyId() == null || req.getCompanyId().isBlank()
+            || req.getServiceId() == null || req.getServiceId().isBlank()) {
+        return ResponseEntity.badRequest().body(
+                new com.companies.alfresco.dto.DocsListNamesResponse(false,
+                        "investorId/companyId/serviceId are required", java.util.Collections.emptyList())
+        );
+    }
+
+    return ResponseEntity.ok(
+            docsListNamesService.listFileNames(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
+    );
+}
 
 
     // private final FolderHierarchyService hierarchyService;
