@@ -1,250 +1,221 @@
-## 📄 Document Integration Service
+# 📄 Document Integration Service
 This service is a standalone Spring Boot microservice used by jBPM/KIE Server to:
-1. Receive document metadata and Base64 content from jBPM
-2. Ensure the user has a dedicated folder in Alfresco (`cm:folder`)
-3. Upload the document into that folder
-4. Return the Alfresco nodeId and JSON metadata back to jBPM
-5. Allow jBPM to reference/view later documents
+- Upload documents into Alfresco in a deterministic folder hierarchy
+- Retrieve documents (all / first)
+- List file names under a specific investor/company/service folder
 
 This enables a clean, externalized integration layer without installing custom handlers or dependencies inside jBPM.
 
+> POC scope: **No review UI** and no preview inside the service.
+> jBPM can display file names (checklist-like) from the `list-names` endpoint.
+
 ---
-### 🏗 1. Architecture Overview
+## 🏗 1. Architecture Overview
+All documents are stored under a root folder in Alfresco called:
+
+**`User Documents`** (created under `-root-` if missing)
+
+Inside it, the hierarchy is:
+
 jBPM ➜ REST ➜ Document Integration Service ➜ Alfresco
 ```bash
-User Uploads Document
-        │
-        ▼
-jBPM Human Task ("Upload Document")
-        │
-        │ produces:
-        │   - document (org.jbpm.document.Document)
-        │
-        ▼
-Script Task (build payload)
-        │
-        ▼
-REST Task → POST /test
-        │
-        ▼
-Document Integration Service
-  • Decode Base64
-  • Ensure user folder in Alfresco exists
-  • Upload document (multipart)
-  • Return nodeId + JSON
+User Documents/
+INV_{investorId}/
+CO_{companyId}/
+SRV_{serviceId}/
+<uploaded files>
 ```
+Examples:
+- `INV_b598367d-bf7d-4556-b07d-a8cf7f0d4ca2`
+- `CO_3988c6ca-d818-4f02-ad66-d3f556487cf8`
+- `SRV_1dbf15e7-03e3-4e42-8087-61d9d154aa25`
+
 The service does all the integration work, keeping jBPM clean and dependency-free.
 
 ---
-### ⚙️ 2. Service Responsibilities
-✔ Receive structured JSON from jBPM
+### ⚙️ 2. Prerequisites
 
-✔ Decode Base64 to a binary file
+### 2.2 Service configuration
+Configure Alfresco connectivity in `application.properties` (or env vars):
 
-✔ Validate size matches original
+```properties
+alfresco.base-url=http://localhost:8088
+alfresco.username=admin
+alfresco.password=admin
+```
 
-✔ Ensure user folder exists in Alfresco (“UserDocuments/{username}”)
-
-✔ Upload file to Alfresco using multipart/form-data
-
-✔ Return Alfresco metadata including `nodeId`
+> The service uses Basic Auth to call Alfresco APIs.
 
 ---
-### 🔧 3. Request Format (from jBPM)
+## 🔧 3. API Endpoints
+Base path: `/api/docs`
+### 3.1 Upload a document
+**POST** `/api/docs`
+
+Uploads a document to Alfresco under:
+
+`User Documents/INV_{investorId}/CO_{companyId}/SRV_{serviceId}`
+
+**Request:** `DocumentUploadRequest`
+
 jBPM sends a JSON body with the following fields:
+
 ```bash
 {
-  "fileName": "document.pdf",
-  "contentBase64": "JVBERi0xLjQKJcfs...",
-  "size": 102304,
-  "username": "ghaidaa",
-  "parentFolderId": null,
-  "mimeType": "application/pdf"
+  "investorId": "b598367d-bf7d-4556-b07d-a8cf7f0d4ca2",
+  "companyId": "3988c6ca-d818-4f02-ad66-d3f556487cf8",
+  "serviceId": "1dbf15e7-03e3-4e42-8087-61d9d154aa25",
+  "originalFileName": "image.jpg",
+  "mimeType": "image/jpeg",
+  "size": 94372,
+  "contentBase64": "BASE64_ENCODED_BYTES..."
 }
 ```
-**Request Fields**
-| Field            | Type   | Required | Description                                                                 |
-| ---------------- | ------ | -------- | --------------------------------------------------------------------------- |
-| `fileName`       | String | ✔️ Yes   | Original document name from jBPM                                            |
-| `contentBase64`  | String | ✔️ Yes   | Base64 content of the file                                                  |
-| `size`           | long   | ✔️ Yes   | Original file size (bytes)                                                  |
-| `username`       | String | ✔️ Yes   | Used to determine folder path in Alfresco                                   |
-| `parentFolderId` | String | Optional | If supplied, upload document in this folder instead of creating user folder |
-| `mimeType`       | String | Optional | Defaults to `application/octet-stream`                                      |
 
----
-### 📤 4. Response Format (to jBPM)
-Upon success, the service returns:
+**Response:** `DocumentUploadResponse`
+
 ```bash
 {
-  "message": "Uploaded to user folder successfully",
   "success": true,
-  "receivedSize": 102304,
-  "nodeId": "d3f1cfae-3fc8-4e32-b4cb-dfa10f4eac21",
-  "fileName": "document.pdf",
-  "alfrescoResponseJson": "{...full JSON from Alfresco...}"
+  "message": "Uploaded successfully",
+  "folderId": "3b075f44-7d49-4981-87ac-e0cb02f2dc2d",
+  "nodeId": "0306fcd3-2f3f-4a16-b122-8a9e22df64a5",
+  "fileName": "1dbf15e7-03e3-4e42-8087-61d9d154aa25_3988c6ca-d818-4f02-ad66-d3f556487cf8_20251216170739.jpg"
 }
 ```
-| Field                  | Type    | Description                                          |
-| ---------------------- | ------- | ---------------------------------------------------- |
-| `message`              | String  | Human-readable upload status                         |
-| `success`              | boolean | Upload succeeded or failed                           |
-| `receivedSize`         | long    | File size decoded from Base64                        |
-| `nodeId`               | String  | The Alfresco node id for the uploaded file           |
-| `fileName`             | String  | Name of uploaded file                                |
-| `alfrescoResponseJson` | String  | Full Alfresco JSON response for debugging or storage |
 
-This `nodeId` is used by jBPM for retrieval & viewing later.
+Notes:
+
+- The service ensures folders exist (creates missing folders).
+
+- The service generates a stable file name (implementation-specific).
 
 ---
-### 🗂 5. Alfresco Folder Structure Logic
-#### Root configuration (in application.properties):
-```bash
-alfresco.users-root-id=<nodeId of UserDocuments folder>
-```
-#### Folder creation flow:
-1. Check if folder /UserDocuments/{username} exists
+### 3.2 Retrieve all documents (metadata + base64)
 
-2. If exists → use its nodeId
+**POST** `/api/docs/retrieve-all`
 
-3. If not → create a new folder:
+Returns all documents under:
+
+`User Documents/INV_{investorId}/CO_{companyId}/SRV_{serviceId}`
+
+**Request:** `DocsRetrieveRequest`
+
 ```bash
 {
-  "name": "{username}",
-  "nodeType": "cm:folder"
+  "investorId": "b598367d-bf7d-4556-b07d-a8cf7f0d4ca2",
+  "companyId": "3988c6ca-d818-4f02-ad66-d3f556487cf8",
+  "serviceId": "1dbf15e7-03e3-4e42-8087-61d9d154aa25"
 }
 ```
-4. Upload document inside this folder
-`/nodes/{userFolderId}/children`
 
-#### Upload endpoint (multipart):
+**Response:** `DocsRetrieveResponse`
+
 ```bash
-POST /alfresco/api/-default-/public/alfresco/versions/1/nodes/{folderId}/children
-```
-Multipart fields:
-
-- `filedata` → binary data
-
-- `name` → fileName
-
-- `nodeType` → "cm:content"
-
----
-### 📦 6. Microservice Components
-**`1. UserFolderService`**
-
-- Finds or creates a folder for the user in Alfresco
-
-- Returns the folder nodeId
-
-**`2. AlfrescoUploadService`**
-
-- Decodes Base64 → bytes
-
-- Builds multipart request
-
-- Uploads to Alfresco
-
-- Returns raw Alfresco JSON
-
-***`3. TestFilePayloadController`**
-
-- Receives JSON request
-
-- Calls folder service → gets folderId
-
-- Calls upload service → gets Alfresco JSON
-
-- Extracts nodeId and returns structured response to jBPM
-
----
-### 🔄 7. jBPM Required Variables
-Inside your jBPM process, you must define these variables:
-| Variable Name      | Type                         | Purpose                        |
-| ------------------ | ---------------------------- | ------------------------------ |
-| `document`         | `org.jbpm.document.Document` | File uploaded by human task    |
-| `DocumentPayload`  | `java.util.Map` or `Object`  | JSON payload sent to REST task |
-| `DocumentResponse` | `Object` or `String`         | REST reply from microservice   |
-| `username`         | `String`                     | Alfresco folder owner          |
-
----
-### 🧩 8. jBPM Script Task — Build Payload
-```bash
-java.util.Map payload = new java.util.HashMap();
-payload.put("fileName", document.getName());
-payload.put("contentBase64",
-    java.util.Base64.getEncoder().encodeToString(document.getContent()));
-payload.put("size", document.getSize());
-payload.put("username", username);
-// payload.put("mimeType", "application/pdf");  // for Example
-
-kcontext.setVariable("DocumentPayload", payload);
-```
----
-### 🌐 9. jBPM REST Work Item Configuration
-
-#### Method
-```bash
-POST
-```
-#### URL
-```bash
-http://your-service-host:8185/test
-```
-#### Content Type
-```bash
-application/json
-```
-#### Input Mapping
-```bash
-ContentData → DocumentPayload
-```
-#### Output Mapping
-```bash
-Result → DocumentResponse
-```
----
-### 🔍 10. Accessing the returned Alfresco nodeId in jBPM
-If you map `Result` → `DocumentResponse` (String):
-Use a Script Task:
-```bash
-String resp = (String) kcontext.getVariable("DocumentResponse");
-String nodeId = null;
-
-int idx = resp.indexOf("\"nodeId\":\"");
-if (idx != -1) {
-    int start = idx + "\"nodeId\":\"".length();
-    int end = resp.indexOf("\"", start);
-    nodeId = resp.substring(start, end);
+{
+  "success": true,
+  "message": "OK",
+  "documents": [
+    {
+      "nodeId": "0306fcd3-2f3f-4a16-b122-8a9e22df64a5",
+      "fileName": "....jpg",
+      "mimeType": "image/jpeg",
+      "size": 94372,
+      "contentBase64": "BASE64..."
+    }
+  ]
 }
-
-kcontext.setVariable("alfrescoNodeId", nodeId);
 ```
 
-Now you can:
-
-✔ Display it to user
-
-✔ Use it in next Alfresco call
-
-✔ Generate a "Download" or "Preview" link
-
 ---
-### 👁️ 11. Previewing or Downloading Files from jBPM
-Alfresco document content URL:
+### 3.3 Retrieve first document only (best for POC)
+**POST** `/api/docs/retrieve-first`
+
+Returns only the  **first file** found under:
+
+`User Documents/INV_{investorId}/CO_{companyId}/SRV_{serviceId}`
+
+**Request:** `DocsRetrieveRequest`
+
 ```bash
-GET http://<alfresco-host>/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/content
+{
+  "investorId": "b598367d-bf7d-4556-b07d-a8cf7f0d4ca2",
+  "companyId": "3988c6ca-d818-4f02-ad66-d3f556487cf8",
+  "serviceId": "1dbf15e7-03e3-4e42-8087-61d9d154aa25"
+}
 ```
-You may inject this URL into a form or send it to a UI.
+
+**Response:** `DocFirstResponse`
+
+```bash
+{
+  "success": true,
+  "message": "OK",
+  "nodeId": "0306fcd3-2f3f-4a16-b122-8a9e22df64a5",
+  "fileName": "....jpg",
+  "mimeType": "image/jpeg",
+  "size": 94372,
+  "contentBase64": "BASE64..."
+}
+```
 
 ---
-### 🚀 12. Summary
-This microservice successfully externalizes document handling:
-| jBPM handles          | Service handles              |
-| --------------------- | ---------------------------- |
-| Human Task – Get file | Base64 decoding              |
-| Build JSON payload    | Alfresco folder check/create |
-| REST call             | Multipart upload             |
-| Store nodeId          | Return structured response   |
+### 3.4 List file names only (for checklist demo)
+**POST** `/api/docs/list-names`
 
-This architecture keeps jBPM **clean, portable, and free of binary-processing dependencies**.
+Returns only file names under:
+
+`User Documents/INV_{investorId}/CO_{companyId}/SRV_{serviceId}`
+
+**Request:** `DocsRetrieveRequest`
+
+```bash
+{
+  "investorId": "b598367d-bf7d-4556-b07d-a8cf7f0d4ca2",
+  "companyId": "3988c6ca-d818-4f02-ad66-d3f556487cf8",
+  "serviceId": "1dbf15e7-03e3-4e42-8087-61d9d154aa25"
+}
+```
+
+**Response:** `DocsListNamesResponse`
+
+```bash
+{
+  "success": true,
+  "message": "OK",
+  "fileNames": [
+    "file1.jpg",
+    "file2.jpg"
+  ]
+}
+```
+
+---
+## 🗒 4. jBPM Notes (How to Call These APIs)
+### 4.1 Upload flow (jBPM side)
+
+Typical variables:
+
+- `document` : `org.jbpm.document.Document`
+
+- `DocumentPayload` : `Object` (Map)
+
+- `DocumentResponse` : `String` (REST result)
+
+- `username` : `String` (optional, if used)
+
+Typical steps:
+
+1. Human Task: user uploads `document`
+2. Script Task: build payload JSON:
+fileName, size, mimeType, contentBase64
+investorId, companyId, serviceId
+3. REST Task: call `POST /api/docs` with JSON body
+4. Use returned `nodeId` (optional) for logging/demo
+
+### 4.2 Retrieve/list flow (jBPM side)
+For demo without preview:
+
+1. Script Task: build JSON `{investorId, companyId, serviceId}`
+2. REST Task: call `POST /api/docs/list-names`
+3. Script Task: convert response to a text checklist and show it in a Human Task
