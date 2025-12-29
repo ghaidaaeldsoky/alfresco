@@ -21,15 +21,17 @@ public class DocumentController {
     private final DocsRetrieveFirstService docsRetrieveFirstService;
     private final DocsListNamesService docsListNamesService;
     private final DocsStatusUpdateService docsStatusUpdateService;
+    private final DocsStatusBulkUpdateService docsStatusBulkUpdateService;
 
     public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService,
-        DocsListNamesService docsListNamesService , DocsStatusUpdateService docsStatusUpdateService
+        DocsListNamesService docsListNamesService , DocsStatusUpdateService docsStatusUpdateService , DocsStatusBulkUpdateService docsStatusBulkUpdateService
     ) {
         this.docsUploadService = docsUploadService;
         this.docsRetrieveService = docsRetrieveService;
         this.docsRetrieveFirstService = docsRetrieveFirstService;
         this.docsListNamesService = docsListNamesService;
         this.docsStatusUpdateService = docsStatusUpdateService;
+        this.docsStatusBulkUpdateService = docsStatusBulkUpdateService;
     }
 
     @PostMapping   // ("/upload")
@@ -109,5 +111,35 @@ public ResponseEntity<DocumentStatusUpdateResponse> updateStatus(
         );
     }
 }
+
+@PostMapping("/update-status-bulk")
+public ResponseEntity<com.companies.alfresco.dto.BulkDocumentStatusUpdateResponse> updateStatusBulk(
+        @RequestBody com.companies.alfresco.dto.BulkDocumentStatusUpdateRequest req) {
+
+    try {
+        return ResponseEntity.ok(docsStatusBulkUpdateService.bulkUpdate(req));
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(
+                new com.companies.alfresco.dto.BulkDocumentStatusUpdateResponse(
+                        false,
+                        e.getMessage(),
+                        java.util.List.of("PENDING","APPROVED","REJECTED"),
+                        java.util.List.of("VERIFIED","UNVERIFIED"),
+                        java.util.Collections.emptyList()
+                )
+        );
+    } catch (Exception e) {
+        return ResponseEntity.internalServerError().body(
+                new com.companies.alfresco.dto.BulkDocumentStatusUpdateResponse(
+                        false,
+                        "Server error: " + e.getMessage(),
+                        java.util.List.of("PENDING","APPROVED","REJECTED"),
+                        java.util.List.of("VERIFIED","UNVERIFIED"),
+                        java.util.Collections.emptyList()
+                )
+        );
+    }
+}
+
 
 }
