@@ -3,6 +3,8 @@ package com.companies.alfresco.controller;
 import com.companies.alfresco.dto.DocFirstResponse;
 import com.companies.alfresco.dto.DocsRetrieveRequest;
 import com.companies.alfresco.dto.DocsRetrieveResponse;
+import com.companies.alfresco.dto.DocumentStatusUpdateRequest;
+import com.companies.alfresco.dto.DocumentStatusUpdateResponse;
 import com.companies.alfresco.dto.DocumentUploadRequest;
 import com.companies.alfresco.dto.DocumentUploadResponse;
 import com.companies.alfresco.service.*;
@@ -18,14 +20,16 @@ public class DocumentController {
     private final DocsRetrieveService docsRetrieveService;
     private final DocsRetrieveFirstService docsRetrieveFirstService;
     private final DocsListNamesService docsListNamesService;
+    private final DocsStatusUpdateService docsStatusUpdateService;
 
     public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService,
-        DocsListNamesService docsListNamesService
+        DocsListNamesService docsListNamesService , DocsStatusUpdateService docsStatusUpdateService
     ) {
         this.docsUploadService = docsUploadService;
         this.docsRetrieveService = docsRetrieveService;
         this.docsRetrieveFirstService = docsRetrieveFirstService;
         this.docsListNamesService = docsListNamesService;
+        this.docsStatusUpdateService = docsStatusUpdateService;
     }
 
     @PostMapping   // ("/upload")
@@ -86,85 +90,24 @@ public ResponseEntity<com.companies.alfresco.dto.DocsListNamesResponse> listName
 
     return ResponseEntity.ok(
             docsListNamesService.listFileNames(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
-    );
+    );   
 }
 
+@PostMapping("/update-status")
+public ResponseEntity<DocumentStatusUpdateResponse> updateStatus(
+        @RequestBody DocumentStatusUpdateRequest req) {
 
-    // private final FolderHierarchyService hierarchyService;
-    // private final FileNamingService namingService;
-    // private final AlfrescoDocumentService documentService;
-    // private final AlfrescoBrowseService browseService;
-    // private final AlfrescoContentService contentService;
+    try {
+        return ResponseEntity.ok(docsStatusUpdateService.updateStatus(req));
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(
+                new com.companies.alfresco.dto.DocumentStatusUpdateResponse(false, e.getMessage(), null, req.getFileName(),req.getApprovalStatus(), req.getVerificationStatus())
+        );
+    } catch (Exception e) {
+        return ResponseEntity.internalServerError().body(
+                new com.companies.alfresco.dto.DocumentStatusUpdateResponse(false, "Server error: " + e.getMessage(), null, req.getFileName(), null, null)
+        );
+    }
+}
 
-    // public DocumentController(FolderHierarchyService hierarchyService,
-    //                           FileNamingService namingService,
-    //                           AlfrescoDocumentService documentService,
-    //                           AlfrescoBrowseService browseService,
-    //                           AlfrescoContentService contentService) {
-    //     this.hierarchyService = hierarchyService;
-    //     this.namingService = namingService;
-    //     this.documentService = documentService;
-    //     this.browseService = browseService;
-    //     this.contentService = contentService;
-    // }
-
-    // // POST /api/docs
-    // @PostMapping
-    // public ResponseEntity<DocumentUploadResponse> upload(@RequestBody DocumentUploadRequest req) {
-    //     try {
-    //         if (blank(req.getInvestorId()) || blank(req.getCompanyId()) || blank(req.getServiceId())) {
-    //             return ResponseEntity.badRequest().body(
-    //                     new DocumentUploadResponse(false, "investorId/companyId/serviceId are required",
-    //                             null, null, null));
-    //         }
-    //         if (blank(req.getOriginalFileName()) || blank(req.getContentBase64()) || req.getSize() <= 0) {
-    //             return ResponseEntity.badRequest().body(
-    //                     new DocumentUploadResponse(false, "originalFileName/contentBase64/size are required",
-    //                             null, null, null));
-    //         }
-
-    //         String folderId = hierarchyService.ensureHierarchy(req.getInvestorId(), req.getCompanyId(), req.getServiceId());
-
-    //         byte[] bytes = Base64.getDecoder().decode(req.getContentBase64());
-    //         if (bytes.length != req.getSize()) {
-    //             return ResponseEntity.badRequest().body(
-    //                     new DocumentUploadResponse(false,
-    //                             "Size mismatch: expected " + req.getSize() + " got " + bytes.length,
-    //                             folderId, null, null));
-    //         }
-
-    //         String fileName = namingService.buildFileName("DOC",req.getServiceId(),req.getCompanyId(),req.getOriginalFileName());
-    //         String mimeType = blank(req.getMimeType()) ? "application/octet-stream" : req.getMimeType();
-
-    //         AlfrescoDocumentService.UploadResult result =
-    //                 documentService.upload(folderId, fileName, bytes, mimeType, req.getServiceId());
-
-    //         return ResponseEntity.ok(new DocumentUploadResponse(
-    //                 true, "Uploaded successfully", folderId, result.nodeId, fileName));
-
-    //     } catch (Exception e) {
-    //         return ResponseEntity.internalServerError().body(
-    //                 new DocumentUploadResponse(false, "Error: " + e.getMessage(), null, null, null));
-    //     }
-    // }
-
-    // GET /api/docs/list?investorId=..&companyId=..&serviceId=..
-    // @GetMapping("/list")
-    // public ResponseEntity<String> list(@RequestParam String investorId,
-    //                                    @RequestParam String companyId,
-    //                                    @RequestParam String serviceId) {
-    //     String folderId = hierarchyService.ensureHierarchy(investorId, companyId, serviceId);
-    //     return ResponseEntity.ok(browseService.listChildrenByFolderId(folderId));
-    // }
-
-    // // GET /api/docs/content/{nodeId}?attachment=false
-    // @GetMapping("/content/{nodeId}")
-    // public ResponseEntity<byte[]> content(@PathVariable String nodeId,
-    //                                       @RequestParam(defaultValue = "false") boolean attachment) {
-    //     return contentService.getNodeContent(nodeId, attachment);
-    // }
-
-    // private boolean blank(String s) {
-    //     return s == null || s.trim().isEmpty();
-    // }
 }
