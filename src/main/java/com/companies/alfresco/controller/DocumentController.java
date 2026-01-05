@@ -3,6 +3,7 @@ package com.companies.alfresco.controller;
 import com.companies.alfresco.dto.DocFirstResponse;
 import com.companies.alfresco.dto.DocsRetrieveRequest;
 import com.companies.alfresco.dto.DocsRetrieveResponse;
+import com.companies.alfresco.dto.DocsRetrieveStatusResponse;
 import com.companies.alfresco.dto.DocumentStatusUpdateRequest;
 import com.companies.alfresco.dto.DocumentStatusUpdateResponse;
 import com.companies.alfresco.dto.DocumentUploadRequest;
@@ -22,9 +23,11 @@ public class DocumentController {
     private final DocsListNamesService docsListNamesService;
     private final DocsStatusUpdateService docsStatusUpdateService;
     private final DocsStatusBulkUpdateService docsStatusBulkUpdateService;
+    private final DocsRetrieveStatusService docsRetrieveStatusService;
 
     public DocumentController(DocsUploadService docsUploadService, DocsRetrieveService docsRetrieveService, DocsRetrieveFirstService docsRetrieveFirstService,
-        DocsListNamesService docsListNamesService , DocsStatusUpdateService docsStatusUpdateService , DocsStatusBulkUpdateService docsStatusBulkUpdateService
+        DocsListNamesService docsListNamesService , DocsStatusUpdateService docsStatusUpdateService , DocsStatusBulkUpdateService docsStatusBulkUpdateService,
+         DocsRetrieveStatusService docsRetrieveStatusService
     ) {
         this.docsUploadService = docsUploadService;
         this.docsRetrieveService = docsRetrieveService;
@@ -32,6 +35,7 @@ public class DocumentController {
         this.docsListNamesService = docsListNamesService;
         this.docsStatusUpdateService = docsStatusUpdateService;
         this.docsStatusBulkUpdateService = docsStatusBulkUpdateService;
+        this.docsRetrieveStatusService = docsRetrieveStatusService;
     }
 
     @PostMapping   // ("/upload")
@@ -140,6 +144,26 @@ public ResponseEntity<com.companies.alfresco.dto.BulkDocumentStatusUpdateRespons
         );
     }
 }
+
+@PostMapping("/retrieve-status")
+public ResponseEntity<DocsRetrieveStatusResponse> retrieveStatus(
+        @RequestBody DocsRetrieveRequest req) {
+
+    if (req.getInvestorId() == null || req.getInvestorId().isBlank()
+            || req.getCompanyId() == null || req.getCompanyId().isBlank()
+            || req.getServiceId() == null || req.getServiceId().isBlank()) {
+        return ResponseEntity.badRequest().body(
+                new DocsRetrieveStatusResponse(false,
+                        "investorId/companyId/serviceId are required",
+                        new java.util.ArrayList<>())
+        );
+    }
+
+    return ResponseEntity.ok(
+            docsRetrieveStatusService.retrieveStatuses(req.getInvestorId(), req.getCompanyId(), req.getServiceId())
+    );
+}
+
 
 
 }
